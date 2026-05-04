@@ -6,54 +6,84 @@
 
 ---
 
-## TypeScript types (shared)
+## TypeScript types
 
-These must exactly match the API response shapes from `api.md`.
+Domain types are imported from `@expense-tracker/api` — no duplication.
+
+`apps/web/src/types.ts` re-exports domain types and contains only frontend-only utilities:
 
 ```typescript
-interface Expense {
-  id: number;
-  amount: number;
-  category: 'food' | 'transport' | 'accommodation' | 'other';
-  description: string;
-  date: string;        // ISO 8601
-  created_at: string;  // ISO 8601
-}
+// Re-export domain types from API (source of truth):
+export type { Expense, ExpenseListResponse, CreateExpensePayload, Category } from "@expense-tracker/api";
 
-interface ExpenseListResponse {
-  expenses: Expense[];
-  total: number;
-  subtotals: {
-    food: number;
-    transport: number;
-    accommodation: number;
-    other: number;
-  };
-}
-
-interface CreateExpensePayload {
-  amount: number;
-  category: 'food' | 'transport' | 'accommodation' | 'other';
-  description: string;
-  date: string;        // ISO 8601
-}
-
-type Category = 'food' | 'transport' | 'accommodation' | 'other';
+// Frontend-only utilities:
+export function formatAmount(amount: number): string { ... }
+export function formatDate(isoString: string): string { ... }
+export const CATEGORIES: Category[] = ["food", "transport", "accommodation", "other"];
+export const CATEGORY_LABELS: Record<Category, string> = { ... };
+export const CATEGORY_COLORS: Record<Category, string> = { ... };
 ```
+
+Types come from two sources:
+- **Eden Treaty** — request/response shapes inferred from the API's `App` type
+- **Direct import** — standalone types (`Expense`, `Category`, etc.) exported from `@expense-tracker/api` for `useState<Expense[]>` and component props
 
 ---
 
 ## API client
 
-A single module `src/api/expenses.ts` that wraps all backend calls.
+Uses Eden Treaty (`@elysiajs/eden`) for fully typed HTTP calls. No raw `fetch`.
 
-| Function              | Method | Endpoint                 | Returns                  |
-|-----------------------|--------|--------------------------|--------------------------|
-| `fetchExpenses(params)` | GET    | `/api/expenses`          | `ExpenseListResponse`    |
-| `createExpense(payload)`| POST   | `/api/expenses`          | `Expense`                |
-| `exportCSV(params)`     | GET    | `/api/expenses/csv`      | triggers browser download |
+```typescript
+import { treaty } from "@elysiajs/eden";
+import type { App } from "@expense-tracker/api";
 
-- `exportCSV` should use `window.open(url)` or create a temporary `<a>` element to download the CSV.
+const client = treaty<App>("http://localhost:3001");
+```
+
+| Function                | Eden call                                      | Returns                              |
+|-------------------------|-------------------------------------------------|--------------------------------------|
+| `fetchExpenses(params)` | `client.api.expenses.get({ query: params })`    | `{ data: ExpenseListResponse, error }` |
+| `createExpense(payload)`| `client.api.expenses.post(payload)`             | `{ data: Expense, error }`            |
+| `exportCSV(params)`     | `client.api.expenses.csv.get({ query: params })`| `{ data: string, error }` → consumer creates Blob download |
+
+### `exportCSV` Eden Treaty approach
+
+The API returns `text/csv` content. Eden Treaty returns `data` as a `string`. The consumer creates a download:
+
+```typescript
+export async function exportCSV(params?: { category?: string }) {
+  const { data, error } = await client.api.expenses.csv.get({ query: params ?? {} });
+  if (error || !data) return;
+
+  const blob = new Blob([data], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "expenses.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+```
+
+## Vite proxy
+
+In dev mode, Vite proxies `/api` → `http://localhost:3001` so the frontend uses relative URLs while Eden Treaty targets the API.
+
+```typescript
+// apps/web/vite.config.ts
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      "/api": "http://localhost:3001",
+    },
+  },
+});
+```
 
 ---
 
