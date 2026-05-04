@@ -1,0 +1,53 @@
+.list {
+  padding-bottom: 24px;
+}
+
+.skeleton {
+  margin: 0 16px 8px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.skeletonLine {
+  height: 14px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  animation: pulse 1.5s infinite;
+}
+
+.skeletonLineShort {
+  height: 14px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  width: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.empty {
+  text-align: center;
+  padding: 48px 16px;
+  color: #999;
+  font-size: 15px;
+}
+
+.retryBtn {
+  display: block;
+  margin: 12px auto 0;
+  padding: 10px 24px;
+  background: #1a73e8;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+}
