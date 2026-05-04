@@ -2,18 +2,58 @@
 
 Base URL: `http://localhost:3001/api`
 
+## Schema-first design
+
+All request/response shapes are defined as Elysia `t` schemas in `apps/api/src/types.ts`.
+These schemas serve as the single source of truth for:
+
+- **Runtime validation** — Elysia validates incoming requests against schemas before handlers run
+- **Type inference** — `Static<typeof Schema>` produces TypeScript types with zero duplication
+- **Eden Treaty** — `apps/web` imports types from the API via Eden Treaty (`@elysiajs/eden`)
+- **OpenAPI docs** — `@elysiajs/swagger` auto-generates from these schemas
+
+### Schema catalog (`apps/api/src/types.ts`)
+
+| Schema name           | Kind      | Description                                    |
+|-----------------------|-----------|------------------------------------------------|
+| `CategoryEnum`        | `t.Union` | `"food" \| "transport" \| "accommodation" \| "other"` |
+| `ExpenseSchema`       | `t.Object`| Full expense row (id, amount, category, description, date, created_at) |
+| `CreateExpenseBody`   | `t.Object`| POST /api/expenses request body                |
+| `ListExpensesQuery`   | `t.Object`| GET /api/expenses query parameters             |
+| `ExpenseListResponse` | `t.Object`| GET /api/expenses response shape               |
+| `ApiError`            | `t.Object`| Error response shape (400, 500)                |
+
+### Validation
+
+Validation is handled by Elysia's built-in `t` schemas at the route level.
+No manual `validateCreateExpense()` function. No `as` casts.
+Elysia uses its own built-in error messages — no custom error message overrides.
+
+---
+
+## GET / — Health check
+
+### Response 200
+
+```json
+{ "status": "ok" }
+```
+
 ---
 
 ## POST /api/expenses — Create a new expense
 
-### Request body (JSON)
+- **Route schema:** `body: CreateExpenseBody`
+- **Handler signature:** `(repo: ExpenseRepository, body: CreateExpenseBody) => Response`
 
-| Field         | Type     | Required | Validation                                                           |
-|---------------|----------|----------|----------------------------------------------------------------------|
-| `amount`      | number   | yes      | > 0, <= 999999999.00, max 2 decimal places                          |
-| `category`    | string   | yes      | one of: `food`, `transport`, `accommodation`, `other`                |
-| `description` | string   | yes      | non-empty, max 500 characters                                        |
-| `date`        | string   | yes      | valid ISO 8601 datetime (e.g. `2026-05-04T12:30:00.000Z`)           |
+### Request body
+
+| Field         | Type     | Required | Elysia validation                                                |
+|---------------|----------|----------|------------------------------------------------------------------|
+| `amount`      | number   | yes      | `t.Number({ minimum: 0, exclusiveMinimum: true, maximum: 999999999, multipleOf: 0.01 })` |
+| `category`    | string   | yes      | `CategoryEnum`                                                   |
+| `description` | string   | yes      | `t.String({ minLength: 1, maxLength: 500 })`                     |
+| `date`        | string   | yes      | `t.String({ format: "date-time" })`                              |
 
 ### Response 201 — Created
 
@@ -28,15 +68,15 @@ Base URL: `http://localhost:3001/api`
 }
 ```
 
-### Response 400 — Validation error
+### Response 400 — Validation error (Elysia built-in)
 
 ```json
 {
-  "error": "ValidationError",
-  "message": "Amount must be greater than 0",
-  "details": [
-    { "field": "amount", "message": "Amount must be greater than 0" }
-  ]
+  "type": "validation",
+  "on": "body",
+  "summary": "Expected number",
+  "property": "/amount",
+  "message": "Expected number"
 }
 ```
 
@@ -52,6 +92,9 @@ Base URL: `http://localhost:3001/api`
 ---
 
 ## GET /api/expenses — List expenses
+
+- **Route schema:** `query: ListExpensesQuery`
+- **Handler signature:** `(repo: ExpenseRepository, query: ListExpensesQuery) => Response`
 
 ### Query parameters
 
@@ -98,11 +141,14 @@ Base URL: `http://localhost:3001/api`
 
 ### Response 500 — Internal server error
 
-Same shape as above.
+Same error shape as POST 500.
 
 ---
 
 ## GET /api/expenses/csv — Export filtered list as CSV
+
+- **Route schema:** `query: ListExpensesQuery`
+- **Handler signature:** `(repo: ExpenseRepository, query: ListExpensesQuery) => Response`
 
 ### Query parameters
 
