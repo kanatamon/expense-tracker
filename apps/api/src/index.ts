@@ -1,7 +1,7 @@
-import { Elysia } from "elysia";
+import { createApp } from "./app";
+import { initDb } from "./db";
 
-const app = new Elysia().get("/", () => ({ status: "ok" }));
-
+const db = initDb();
+const app = createApp(db);
 app.listen(3001);
-
 console.log(`🦊 API server running at http://localhost:${app.server?.port}`);
