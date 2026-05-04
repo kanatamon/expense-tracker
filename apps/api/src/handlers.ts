@@ -27,7 +27,7 @@ export function handleCreateExpense(
   body: CreateExpenseBodyType
 ): Response {
   try {
-    const expense = repo.create(body);
+    const expense = repo.insert(body);
 
     return jsonResponse(
       {
@@ -50,8 +50,10 @@ export function handleListExpenses(
   query: ListExpensesQueryType
 ): Response {
   try {
-    const result = repo.list(query);
-    return jsonResponse(result, 200);
+    const expenses = repo.findAll(query);
+    const total = repo.totalByCategory(query.category);
+    const subtotals = repo.subtotalsByCategory(query.category);
+    return jsonResponse({ expenses, total, subtotals }, 200);
   } catch {
     return internalErrorResponse();
   }

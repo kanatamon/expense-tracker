@@ -1,15 +1,15 @@
 import { describe, expect, it, beforeEach } from "bun:test";
 import { createTestDb } from "./db";
-import { ExpenseRepository } from "./repository";
+import { SqliteExpenseRepository } from "./repository";
 import type { CreateExpenseBodyType, ListExpensesQueryType } from "./types";
 import { handleCreateExpense, handleListExpenses, handleExportCsv } from "./handlers";
 
 describe("handleCreateExpense", () => {
-  let repo: ExpenseRepository;
+  let repo: SqliteExpenseRepository;
 
   beforeEach(() => {
     const db = createTestDb();
-    repo = new ExpenseRepository(db);
+    repo = new SqliteExpenseRepository(db);
   });
 
   it("creates an expense and returns 201 with correct shape", async () => {
@@ -63,7 +63,7 @@ describe("handleCreateExpense", () => {
   });
 });
 
-function seedExpenses(repo: ExpenseRepository) {
+function seedExpenses(repo: SqliteExpenseRepository) {
   const seedData: CreateExpenseBodyType[] = [
     {
       amount: 100.0,
@@ -92,16 +92,16 @@ function seedExpenses(repo: ExpenseRepository) {
   ];
 
   for (const data of seedData) {
-    handleCreateExpense(repo, data);
+    repo.insert(data);
   }
 }
 
 describe("handleListExpenses", () => {
-  let repo: ExpenseRepository;
+  let repo: SqliteExpenseRepository;
 
   beforeEach(() => {
     const db = createTestDb();
-    repo = new ExpenseRepository(db);
+    repo = new SqliteExpenseRepository(db);
     seedExpenses(repo);
   });
 
@@ -168,11 +168,11 @@ describe("handleListExpenses", () => {
 });
 
 describe("handleExportCsv", () => {
-  let repo: ExpenseRepository;
+  let repo: SqliteExpenseRepository;
 
   beforeEach(() => {
     const db = createTestDb();
-    repo = new ExpenseRepository(db);
+    repo = new SqliteExpenseRepository(db);
     seedExpenses(repo);
   });
 

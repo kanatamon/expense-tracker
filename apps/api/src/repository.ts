@@ -1,21 +1,50 @@
 import { Database } from "bun:sqlite";
-import type { CreateExpenseBodyType, ListExpensesQueryType, ExpenseRowType, ExpenseListResponseType } from "./types";
+import type {
+  CreateExpenseBodyType,
+  ListExpensesQueryType,
+  ExpenseRowType,
+  CategoryEnumType,
+} from "./types";
 
-export class ExpenseRepository {
+export interface ExpenseRepository {
+  insert(input: CreateExpenseBodyType): ExpenseRowType;
+  findAll(query: ListExpensesQueryType): ExpenseRowType[];
+  totalByCategory(category?: CategoryEnumType): number;
+  subtotalsByCategory(category?: CategoryEnumType): Record<CategoryEnumType, number>;
+  exportCsv(query: ListExpensesQueryType): string;
+}
+
+type FilterResult = { whereClause: string; params: Record<string, string> };
+
+export class SqliteExpenseRepository implements ExpenseRepository {
   constructor(private db: Database) {}
 
-  create(body: CreateExpenseBodyType): ExpenseRowType {
-    const amount = Math.round(body.amount * 100) / 100;
-    const description = body.description.trim();
+  private buildFilter(category?: CategoryEnumType): FilterResult {
+    if (!category) return { whereClause: "", params: {} };
+    return {
+      whereClause: " WHERE category = $category",
+      params: { $category: category },
+    };
+  }
+
+  private buildOrder(sortBy: string, sortOrder: string): string {
+    const safeSortBy = sortBy === "amount" ? "amount" : "date";
+    const safeSortOrder = sortOrder.toUpperCase() === "ASC" ? "ASC" : "DESC";
+    return ` ORDER BY ${safeSortBy} ${safeSortOrder}`;
+  }
+
+  insert(input: CreateExpenseBodyType): ExpenseRowType {
+    const amount = Math.round(input.amount * 100) / 100;
+    const description = input.description.trim();
 
     const stmt = this.db.prepare(
       "INSERT INTO expenses (amount, category, description, date) VALUES ($amount, $category, $description, $date)"
     );
     const result = stmt.run({
       $amount: amount,
-      $category: body.category,
+      $category: input.category,
       $description: description,
-      $date: body.date,
+      $date: input.date,
     });
 
     return this.db
@@ -23,68 +52,52 @@ export class ExpenseRepository {
       .get({ $id: Number(result.lastInsertRowid) }) as ExpenseRowType;
   }
 
-  list(query: ListExpensesQueryType): ExpenseListResponseType {
-    const category = query.category;
-    const sortBy = query.sort_by ?? "date";
-    const sortOrder = query.sort_order ?? "desc";
+  findAll(query: ListExpensesQueryType): ExpenseRowType[] {
+    const { whereClause, params } = this.buildFilter(query.category);
+    const orderClause = this.buildOrder(query.sort_by ?? "date", query.sort_order ?? "desc");
+    const sql = `SELECT id, amount, category, description, date, created_at FROM expenses${whereClause}${orderClause}`;
+    return this.db.query(sql).all(params) as ExpenseRowType[];
+  }
 
-    let whereClause = "";
-    const params: Record<string, string> = {};
+  totalByCategory(category?: CategoryEnumType): number {
+    const { whereClause, params } = this.buildFilter(category);
+    const sql = `SELECT COALESCE(SUM(amount), 0) as total FROM expenses${whereClause}`;
+    const row = this.db.query(sql).get(params) as { total: number };
+    return Math.round(row.total * 100) / 100;
+  }
+
+  subtotalsByCategory(category?: CategoryEnumType): Record<CategoryEnumType, number> {
+    const allCategories: CategoryEnumType[] = ["food", "transport", "accommodation", "other"];
+    const defaults: Record<CategoryEnumType, number> = {
+      food: 0,
+      transport: 0,
+      accommodation: 0,
+      other: 0,
+    };
 
     if (category) {
-      whereClause = " WHERE category = $category";
-      params.$category = category;
+      const { whereClause, params } = this.buildFilter(category);
+      const sql = `SELECT COALESCE(SUM(amount), 0) as sum FROM expenses${whereClause}`;
+      const row = this.db.query(sql).get(params) as { sum: number };
+      return { ...defaults, [category]: Math.round(row.sum * 100) / 100 };
     }
 
-    const expensesSql = `SELECT id, amount, category, description, date, created_at FROM expenses${whereClause} ORDER BY ${sortBy} ${sortOrder.toUpperCase()}`;
-    const expenses = this.db.query(expensesSql).all(params) as ExpenseRowType[];
-
-    const totalSql = `SELECT COALESCE(SUM(amount), 0) as total FROM expenses${whereClause}`;
-    const totalRow = this.db.query(totalSql).get(params) as { total: number };
-    const total = Math.round(totalRow.total * 100) / 100;
-
-    const allCategories = ["food", "transport", "accommodation", "other"] as const;
-
-    let subtotals: Record<string, number>;
-
-    if (category) {
-      const catSumSql =
-        "SELECT COALESCE(SUM(amount), 0) as sum FROM expenses WHERE category = $category";
-      const catRow = this.db.query(catSumSql).get({ $category: category }) as { sum: number };
-
-      subtotals = { food: 0, transport: 0, accommodation: 0, other: 0 };
-      subtotals[category] = Math.round(catRow.sum * 100) / 100;
-    } else {
-      const subSql =
-        "SELECT category, COALESCE(SUM(amount), 0) as sum FROM expenses GROUP BY category";
-      const rows = this.db.query(subSql).all() as Array<{ category: string; sum: number }>;
-
-      subtotals = { food: 0, transport: 0, accommodation: 0, other: 0 };
-      for (const row of rows) {
-        if (allCategories.includes(row.category as typeof allCategories[number])) {
-          subtotals[row.category] = Math.round(row.sum * 100) / 100;
-        }
+    const sql =
+      "SELECT category, COALESCE(SUM(amount), 0) as sum FROM expenses GROUP BY category";
+    const rows = this.db.query(sql).all() as Array<{ category: string; sum: number }>;
+    const result = { ...defaults };
+    for (const row of rows) {
+      if (allCategories.includes(row.category as CategoryEnumType)) {
+        result[row.category as CategoryEnumType] = Math.round(row.sum * 100) / 100;
       }
     }
-
-    return { expenses, total, subtotals };
+    return result;
   }
 
   exportCsv(query: ListExpensesQueryType): string {
-    const category = query.category;
-    const sortBy = query.sort_by ?? "date";
-    const sortOrder = query.sort_order ?? "desc";
-
-    let sql = "SELECT id, amount, category, description, date, created_at FROM expenses";
-    const params: Record<string, string> = {};
-
-    if (category) {
-      sql += " WHERE category = $category";
-      params.$category = category;
-    }
-
-    sql += ` ORDER BY ${sortBy} ${sortOrder.toUpperCase()}`;
-
+    const { whereClause, params } = this.buildFilter(query.category);
+    const orderClause = this.buildOrder(query.sort_by ?? "date", query.sort_order ?? "desc");
+    const sql = `SELECT id, amount, category, description, date, created_at FROM expenses${whereClause}${orderClause}`;
     const rows = this.db.query(sql).all(params) as ExpenseRowType[];
 
     const header = "id,amount,category,description,date,created_at";
