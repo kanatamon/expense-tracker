@@ -5,13 +5,13 @@ import {
   CreateExpenseBody,
   ListExpensesQuery,
   ExpenseSchema,
-  ExpenseListResponse,
+  ExpenseListResponseSchema,
   ApiError,
 } from "./types";
 import { handleHealthCheck } from "./handlers/health";
 import { createExpense, listExpenses, exportCsv } from "./handlers/expense";
 
-export function createApp(repo: ExpenseRepository): Elysia {
+export function createApp(repo: ExpenseRepository) {
   return new Elysia()
     .use(cors())
     .decorate("repo", repo)
@@ -38,7 +38,7 @@ export function createApp(repo: ExpenseRepository): Elysia {
     })
     .get("/api/expenses", listExpenses, {
       query: ListExpensesQuery,
-      response: { 200: ExpenseListResponse, 500: ApiError },
+      response: { 200: ExpenseListResponseSchema, 500: ApiError },
     })
     .get(
       "/api/expenses/csv",
