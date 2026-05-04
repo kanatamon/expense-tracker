@@ -26,7 +26,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const params: { category?: string } = {};
+      const params: { category?: Category } = {};
       if (activeFilter) params.category = activeFilter;
       const data: ExpenseListResponse = await fetchExpenses(params);
       setExpenses(data.expenses);

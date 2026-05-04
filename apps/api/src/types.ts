@@ -34,7 +34,7 @@ export const ExpenseSchema = t.Object({
   created_at: t.String(),
 });
 
-export const ExpenseListResponse = t.Object({
+export const ExpenseListResponseSchema = t.Object({
   expenses: t.Array(ExpenseSchema),
   total: t.Number(),
   subtotals: t.Object({
@@ -56,5 +56,12 @@ export type CategoryEnumType = Static<typeof CategoryEnum>;
 export type CreateExpenseBodyType = Static<typeof CreateExpenseBody>;
 export type ListExpensesQueryType = Static<typeof ListExpensesQuery>;
 export type ExpenseRowType = Static<typeof ExpenseSchema>;
-export type ExpenseListResponseType = Static<typeof ExpenseListResponse>;
+export type ExpenseListResponseType = Static<typeof ExpenseListResponseSchema>;
+export type ExpenseListResponse = ExpenseListResponseType;
 export type ApiErrorType = Static<typeof ApiError>;
+
+// Frontend-friendly aliases (contract: frontend.md)
+export type Expense = ExpenseRowType;
+export type Category = CategoryEnumType;
+export type CreateExpensePayload = CreateExpenseBodyType;
+// ExpenseListResponse is already exported as a type alias above

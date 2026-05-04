@@ -7,3 +7,7 @@ const repo = new ExpenseRepository(db);
 const app = createApp(repo);
 app.listen(3001);
 console.log(`🦊 API server running at http://localhost:${app.server?.port}`);
+
+export type App = typeof app;
+
+export type { Expense, ExpenseListResponse, CreateExpensePayload, Category } from "./types";

@@ -1,31 +1,6 @@
-export interface Expense {
-  id: number;
-  amount: number;
-  category: "food" | "transport" | "accommodation" | "other";
-  description: string;
-  date: string;
-  created_at: string;
-}
-
-export interface ExpenseListResponse {
-  expenses: Expense[];
-  total: number;
-  subtotals: {
-    food: number;
-    transport: number;
-    accommodation: number;
-    other: number;
-  };
-}
-
-export interface CreateExpensePayload {
-  amount: number;
-  category: "food" | "transport" | "accommodation" | "other";
-  description: string;
-  date: string;
-}
-
-export type Category = "food" | "transport" | "accommodation" | "other";
+// Re-export domain types from API (source of truth)
+import type { Expense, ExpenseListResponse, CreateExpensePayload, Category } from "@expense-tracker/api";
+export type { Expense, ExpenseListResponse, CreateExpensePayload, Category };
 
 export interface ValidationDetail {
   field: string;

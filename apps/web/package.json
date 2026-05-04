@@ -9,6 +9,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@expense-tracker/api": "workspace:*",
+    "@elysiajs/eden": "latest",
+    "elysia": "latest",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
   },

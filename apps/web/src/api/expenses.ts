@@ -1,59 +1,53 @@
-import type {
-  Expense,
-  ExpenseListResponse,
-  CreateExpensePayload,
-} from "../types";
+import { treaty } from "@elysiajs/eden";
+import type { App } from "@expense-tracker/api";
+import type { Expense, ExpenseListResponse, CreateExpensePayload, Category } from "../types";
+
+const client = treaty<App>("http://localhost:3001");
 
 export async function fetchExpenses(
   params?: {
-    category?: string;
-    sort_by?: string;
-    sort_order?: string;
+    category?: Category;
+    sort_by?: "date" | "amount";
+    sort_order?: "asc" | "desc";
   },
 ): Promise<ExpenseListResponse> {
-  const searchParams = new URLSearchParams();
-  if (params?.category) searchParams.set("category", params.category);
-  if (params?.sort_by) searchParams.set("sort_by", params.sort_by);
-  if (params?.sort_order) searchParams.set("sort_order", params.sort_order);
+  const res = await client.api.expenses.get({ query: params ?? {} });
+  if (res.error) throw res.error;
+  if (!res.data) throw new Error("No data returned from server");
+  return res.data;
+}
 
-  const qs = searchParams.toString();
-  const url = `/api/expenses${qs ? `?${qs}` : ""}`;
-
-  const res = await fetch(url);
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw body ?? { error: "NetworkError", message: "Failed to fetch expenses" };
-  }
-  return res.json();
+function isExpense(value: unknown): value is Expense {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "amount" in value &&
+    "category" in value &&
+    "id" in value
+  );
 }
 
 export async function createExpense(
   payload: CreateExpensePayload,
 ): Promise<Expense> {
-  const res = await fetch("/api/expenses", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw body ?? { error: "NetworkError", message: "Failed to create expense" };
+  const res = await client.api.expenses.post(payload);
+  if (res.error) throw res.error;
+  if (!res.data || !isExpense(res.data)) {
+    throw new Error("No data returned from server");
   }
-  return res.json();
+  return res.data;
 }
 
-export function exportCSV(params?: { category?: string }): void {
-  const searchParams = new URLSearchParams();
-  if (params?.category) searchParams.set("category", params.category);
+export async function exportCSV(params?: { category?: Category }): Promise<void> {
+  const res = await client.api.expenses.csv.get({ query: params ?? {} });
+  if (res.error) return;
+  if (!res.data || typeof res.data !== "string") return;
 
-  const qs = searchParams.toString();
-  const url = `/api/expenses/csv${qs ? `?${qs}` : ""}`;
-
+  const blob = new Blob([res.data], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = "expenses.csv";
-  document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
