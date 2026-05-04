@@ -11,6 +11,9 @@ import {
 import { handleHealthCheck } from "./handlers/health";
 import { createExpense, listExpenses, exportCsv } from "./handlers/expense";
 
+// Return type omitted intentionally: Eden Treaty needs the concrete
+// Elysia instance type (with route schemas) for full type inference.
+// A plain `Elysia` annotation erases the schema information.
 export function createApp(repo: ExpenseRepository) {
   return new Elysia()
     .use(cors())
