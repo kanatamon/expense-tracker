@@ -17,6 +17,10 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
+      // Elysia types don't resolve transitively when imported via a
+      // workspace dependency (@expense-tracker/api). This forces the
+      // compiler to use the copy in this package's node_modules.
+      // Safe to remove if Elysia ships proper subpath exports.
       "elysia": ["node_modules/elysia"],
       "elysia/*": ["node_modules/elysia/*"]
     }
