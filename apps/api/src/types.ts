@@ -11,10 +11,8 @@ export const CategoryEnum = t.Union([
 
 export const CreateExpenseBody = t.Object({
   amount: t.Number({
-    minimum: 0,
-    exclusiveMinimum: true,
+    exclusiveMinimum: 0,
     maximum: 999999999,
-    multipleOf: 0.01,
   }),
   category: CategoryEnum,
   description: t.String({ minLength: 1, maxLength: 500 }),

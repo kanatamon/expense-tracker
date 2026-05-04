@@ -1,26 +1,61 @@
 import { describe, expect, it, beforeEach } from "bun:test";
 import { createTestDb } from "./db";
 import { ExpenseRepository } from "./repository";
+import { createApp } from "./app";
 import type { CreateExpenseBodyType, ListExpensesQueryType } from "./types";
-import { handleCreateExpense, handleListExpenses, handleExportCsv } from "./handlers";
+import type { Elysia } from "elysia";
 
-describe("handleCreateExpense", () => {
-  let repo: ExpenseRepository;
+function createTestApp() {
+  const db = createTestDb();
+  const repo = new ExpenseRepository(db);
+  const app = createApp(repo);
+  return { app, repo, db };
+}
 
-  beforeEach(() => {
-    const db = createTestDb();
-    repo = new ExpenseRepository(db);
+// ─── Health check ────────────────────────────────────────────────
+
+describe("GET / - Health check", () => {
+  it("returns 200 with status ok", async () => {
+    const { app } = createTestApp();
+    const req = new Request("http://localhost/");
+    const res = await app.handle(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toEqual({ status: "ok" });
   });
+});
 
+// ─── POST /api/expenses ──────────────────────────────────────────
+
+function createExpenseBody(
+  overrides: Partial<CreateExpenseBodyType> = {}
+): CreateExpenseBodyType {
+  return {
+    amount: 450.6,
+    category: "food",
+    description: "Team lunch at CentralWorld",
+    date: "2026-05-04T12:30:00.000Z",
+    ...overrides,
+  };
+}
+
+function postExpense(
+  app: Elysia,
+  body: CreateExpenseBodyType
+): Promise<Response> {
+  const req = new Request("http://localhost/api/expenses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return app.handle(req);
+}
+
+describe("POST /api/expenses", () => {
   it("creates an expense and returns 201 with correct shape", async () => {
-    const body: CreateExpenseBodyType = {
-      amount: 450.6,
-      category: "food",
-      description: "Team lunch at CentralWorld",
-      date: "2026-05-04T12:30:00.000Z",
-    };
-
-    const res = handleCreateExpense(repo, body);
+    const { app } = createTestApp();
+    const body = createExpenseBody();
+    const res = await postExpense(app, body);
 
     expect(res.status).toBe(201);
     const json = await res.json();
@@ -33,14 +68,9 @@ describe("handleCreateExpense", () => {
   });
 
   it("trims description whitespace", async () => {
-    const body: CreateExpenseBodyType = {
-      amount: 100,
-      category: "other",
-      description: "  padded  ",
-      date: "2026-05-04T12:30:00.000Z",
-    };
-
-    const res = handleCreateExpense(repo, body);
+    const { app } = createTestApp();
+    const body = createExpenseBody({ description: "  padded  " });
+    const res = await postExpense(app, body);
 
     expect(res.status).toBe(201);
     const json = await res.json();
@@ -48,20 +78,52 @@ describe("handleCreateExpense", () => {
   });
 
   it("rounds amount to 2 decimal places", async () => {
-    const body: CreateExpenseBodyType = {
-      amount: 100.555,
-      category: "other",
-      description: "test",
-      date: "2026-05-04T12:30:00.000Z",
-    };
-
-    const res = handleCreateExpense(repo, body);
+    const { app } = createTestApp();
+    const body = createExpenseBody({ amount: 100.555 });
+    const res = await postExpense(app, body);
 
     expect(res.status).toBe(201);
     const json = await res.json();
     expect(json.amount).toBe(100.56);
   });
+
+  it("rejects missing required fields (empty body)", async () => {
+    const { app } = createTestApp();
+    const req = new Request("http://localhost/api/expenses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const res = await app.handle(req);
+    expect(res.status).toBe(422);
+  });
+
+  it("rejects invalid category", async () => {
+    const { app } = createTestApp();
+    const body = createExpenseBody({ category: "invalid" as any });
+    const req = new Request("http://localhost/api/expenses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const res = await app.handle(req);
+    expect(res.status).toBe(422);
+  });
+
+  it("rejects negative amount", async () => {
+    const { app } = createTestApp();
+    const body = createExpenseBody({ amount: -10 });
+    const req = new Request("http://localhost/api/expenses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const res = await app.handle(req);
+    expect(res.status).toBe(422);
+  });
 });
+
+// ─── Seed helper ─────────────────────────────────────────────────
 
 function seedExpenses(repo: ExpenseRepository) {
   const seedData: CreateExpenseBodyType[] = [
@@ -90,24 +152,38 @@ function seedExpenses(repo: ExpenseRepository) {
       date: "2026-04-01T12:00:00.000Z",
     },
   ];
-
   for (const data of seedData) {
-    handleCreateExpense(repo, data);
+    repo.create(data);
   }
 }
 
-describe("handleListExpenses", () => {
+async function getExpenses(
+  app: Elysia,
+  queryParams: Record<string, string> = {}
+): Promise<Response> {
+  const params = new URLSearchParams(queryParams).toString();
+  const url = params
+    ? `http://localhost/api/expenses?${params}`
+    : "http://localhost/api/expenses";
+  const req = new Request(url);
+  return app.handle(req);
+}
+
+// ─── GET /api/expenses ───────────────────────────────────────────
+
+describe("GET /api/expenses", () => {
+  let app: Elysia;
   let repo: ExpenseRepository;
 
   beforeEach(() => {
-    const db = createTestDb();
-    repo = new ExpenseRepository(db);
+    const ctx = createTestApp();
+    app = ctx.app;
+    repo = ctx.repo;
     seedExpenses(repo);
   });
 
   it("returns expenses sorted by date desc by default", async () => {
-    const query: ListExpensesQueryType = {};
-    const res = handleListExpenses(repo, query);
+    const res = await getExpenses(app);
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -117,16 +193,14 @@ describe("handleListExpenses", () => {
   });
 
   it("computes total correctly", async () => {
-    const query: ListExpensesQueryType = {};
-    const res = handleListExpenses(repo, query);
+    const res = await getExpenses(app);
     const body = await res.json();
     // 100 + 250.5 + 75.25 + 500 = 925.75
     expect(body.total).toBe(925.75);
   });
 
   it("computes subtotals for all 4 categories", async () => {
-    const query: ListExpensesQueryType = {};
-    const res = handleListExpenses(repo, query);
+    const res = await getExpenses(app);
     const body = await res.json();
     expect(body.subtotals).toEqual({
       food: 175.25,
@@ -137,8 +211,7 @@ describe("handleListExpenses", () => {
   });
 
   it("filters by category", async () => {
-    const query: ListExpensesQueryType = { category: "food" };
-    const res = handleListExpenses(repo, query);
+    const res = await getExpenses(app, { category: "food" });
     const body = await res.json();
     expect(body.expenses.length).toBe(2);
     expect(body.total).toBe(175.25);
@@ -151,34 +224,69 @@ describe("handleListExpenses", () => {
   });
 
   it("sorts by amount asc", async () => {
-    const query: ListExpensesQueryType = { sort_by: "amount", sort_order: "asc" };
-    const res = handleListExpenses(repo, query);
+    const res = await getExpenses(app, {
+      sort_by: "amount",
+      sort_order: "asc",
+    });
     const body = await res.json();
-    const amounts = body.expenses.map((e: { amount: number }) => e.amount);
+    const amounts = body.expenses.map(
+      (e: { amount: number }) => e.amount
+    );
     expect(amounts).toEqual([75.25, 100, 250.5, 500]);
   });
 
   it("sorts by amount desc", async () => {
-    const query: ListExpensesQueryType = { sort_by: "amount", sort_order: "desc" };
-    const res = handleListExpenses(repo, query);
+    const res = await getExpenses(app, {
+      sort_by: "amount",
+      sort_order: "desc",
+    });
     const body = await res.json();
-    const amounts = body.expenses.map((e: { amount: number }) => e.amount);
+    const amounts = body.expenses.map(
+      (e: { amount: number }) => e.amount
+    );
     expect(amounts).toEqual([500, 250.5, 100, 75.25]);
+  });
+
+  it("rejects invalid sort_by", async () => {
+    const { app: freshApp } = createTestApp();
+    const res = await getExpenses(freshApp, { sort_by: "invalid" });
+    expect(res.status).toBe(422);
+  });
+
+  it("rejects invalid sort_order", async () => {
+    const { app: freshApp } = createTestApp();
+    const res = await getExpenses(freshApp, { sort_order: "invalid" });
+    expect(res.status).toBe(422);
   });
 });
 
-describe("handleExportCsv", () => {
+// ─── GET /api/expenses/csv ───────────────────────────────────────
+
+async function getCsv(
+  app: Elysia,
+  queryParams: Record<string, string> = {}
+): Promise<Response> {
+  const params = new URLSearchParams(queryParams).toString();
+  const url = params
+    ? `http://localhost/api/expenses/csv?${params}`
+    : "http://localhost/api/expenses/csv";
+  const req = new Request(url);
+  return app.handle(req);
+}
+
+describe("GET /api/expenses/csv", () => {
+  let app: Elysia;
   let repo: ExpenseRepository;
 
   beforeEach(() => {
-    const db = createTestDb();
-    repo = new ExpenseRepository(db);
+    const ctx = createTestApp();
+    app = ctx.app;
+    repo = ctx.repo;
     seedExpenses(repo);
   });
 
   it("returns CSV with correct headers and 4 data rows", async () => {
-    const query: ListExpensesQueryType = {};
-    const res = handleExportCsv(repo, query);
+    const res = await getCsv(app);
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("text/csv");
@@ -193,12 +301,17 @@ describe("handleExportCsv", () => {
   });
 
   it("returns filtered CSV by category", async () => {
-    const query: ListExpensesQueryType = { category: "transport" };
-    const res = handleExportCsv(repo, query);
+    const res = await getCsv(app, { category: "transport" });
     const text = await res.text();
     const lines = text.split("\n").filter((l) => l.length > 0);
     // Header + 1 data row
     expect(lines.length).toBe(2);
     expect(lines[1]).toContain("transport");
+  });
+
+  it("rejects invalid category in CSV export", async () => {
+    const { app: freshApp } = createTestApp();
+    const res = await getCsv(freshApp, { category: "invalid" });
+    expect(res.status).toBe(422);
   });
 });

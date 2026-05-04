@@ -1,7 +1,6 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { ExpenseRepository } from "./repository";
-import { handleHealthCheck, handleCreateExpense, handleListExpenses, handleExportCsv } from "./handlers";
 import {
   CreateExpenseBody,
   ListExpensesQuery,
@@ -9,36 +8,41 @@ import {
   ExpenseListResponse,
   ApiError,
 } from "./types";
+import { handleHealthCheck } from "./handlers/health";
+import { createExpense, listExpenses, exportCsv } from "./handlers/expense";
 
 export function createApp(repo: ExpenseRepository): Elysia {
   return new Elysia()
     .use(cors())
-    .get("/", () => handleHealthCheck())
-    .post(
-      "/api/expenses",
-      ({ body }) => handleCreateExpense(repo, body),
-      {
-        body: CreateExpenseBody,
-        response: {
-          201: ExpenseSchema,
-          500: ApiError,
-        },
+    .decorate("repo", repo)
+    .onError(({ code, error, set }) => {
+      if (code === "NOT_FOUND") {
+        set.status = 404;
+        return { error: "NotFound", message: String(error) };
       }
-    )
-    .get(
-      "/api/expenses",
-      ({ query }) => handleListExpenses(repo, query),
-      {
-        query: ListExpensesQuery,
-        response: {
-          200: ExpenseListResponse,
-          500: ApiError,
-        },
+      if (code === "PARSE") {
+        set.status = 400;
+        return { error: "ParseError", message: error.message };
       }
-    )
+      if (code === "VALIDATION") {
+        // Let Elysia use default validation error response
+        return;
+      }
+      set.status = 500;
+      return { error: "InternalError", message: "An unexpected error occurred" };
+    })
+    .get("/", handleHealthCheck)
+    .post("/api/expenses", createExpense, {
+      body: CreateExpenseBody,
+      response: { 201: ExpenseSchema, 500: ApiError },
+    })
+    .get("/api/expenses", listExpenses, {
+      query: ListExpensesQuery,
+      response: { 200: ExpenseListResponse, 500: ApiError },
+    })
     .get(
       "/api/expenses/csv",
-      ({ query }) => handleExportCsv(repo, query),
+      exportCsv,
       {
         query: ListExpensesQuery,
       }
