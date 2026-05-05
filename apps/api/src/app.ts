@@ -51,3 +51,6 @@ export function createApp(repo: ExpenseRepository) {
       }
     );
 }
+
+export type App = ReturnType<typeof createApp>;
+

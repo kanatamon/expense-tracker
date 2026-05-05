@@ -45,7 +45,7 @@ export class ExpenseRepository {
 
     const allCategories = ["food", "transport", "accommodation", "other"] as const;
 
-    let subtotals: Record<string, number>;
+    let subtotals: { food: number; transport: number; accommodation: number; other: number };
 
     if (category) {
       const catSumSql =
@@ -62,7 +62,7 @@ export class ExpenseRepository {
       subtotals = { food: 0, transport: 0, accommodation: 0, other: 0 };
       for (const row of rows) {
         if (allCategories.includes(row.category as typeof allCategories[number])) {
-          subtotals[row.category] = Math.round(row.sum * 100) / 100;
+          subtotals[row.category as keyof typeof subtotals] = Math.round(row.sum * 100) / 100;
         }
       }
     }

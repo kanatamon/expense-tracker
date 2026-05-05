@@ -1,10 +1,8 @@
 import { describe, expect, it, beforeEach } from "bun:test";
 import { createTestDb } from "./db";
 import { ExpenseRepository } from "./repository";
-import { createApp } from "./app";
-import type { CreateExpenseBodyType, ListExpensesQueryType } from "./types";
-import type { Elysia } from "elysia";
-
+import { createApp, type App } from "./app";
+import type { CreateExpenseBodyType } from "./types";
 function createTestApp() {
   const db = createTestDb();
   const repo = new ExpenseRepository(db);
@@ -40,7 +38,7 @@ function createExpenseBody(
 }
 
 function postExpense(
-  app: Elysia,
+  app: App,
   body: CreateExpenseBodyType
 ): Promise<Response> {
   const req = new Request("http://localhost/api/expenses", {
@@ -158,7 +156,7 @@ function seedExpenses(repo: ExpenseRepository) {
 }
 
 async function getExpenses(
-  app: Elysia,
+  app: App,
   queryParams: Record<string, string> = {}
 ): Promise<Response> {
   const params = new URLSearchParams(queryParams).toString();
@@ -172,7 +170,7 @@ async function getExpenses(
 // ─── GET /api/expenses ───────────────────────────────────────────
 
 describe("GET /api/expenses", () => {
-  let app: Elysia;
+  let app: App;
   let repo: ExpenseRepository;
 
   beforeEach(() => {
@@ -263,7 +261,7 @@ describe("GET /api/expenses", () => {
 // ─── GET /api/expenses/csv ───────────────────────────────────────
 
 async function getCsv(
-  app: Elysia,
+  app: App,
   queryParams: Record<string, string> = {}
 ): Promise<Response> {
   const params = new URLSearchParams(queryParams).toString();
@@ -275,7 +273,7 @@ async function getCsv(
 }
 
 describe("GET /api/expenses/csv", () => {
-  let app: Elysia;
+  let app: App;
   let repo: ExpenseRepository;
 
   beforeEach(() => {
