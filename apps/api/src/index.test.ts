@@ -3,6 +3,7 @@ import { createTestDb } from "./db";
 import { ExpenseRepository } from "./repository";
 import { createApp, type App } from "./app";
 import type { CreateExpenseBodyType } from "./types";
+
 function createTestApp() {
   const db = createTestDb();
   const repo = new ExpenseRepository(db);
