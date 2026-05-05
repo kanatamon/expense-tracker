@@ -4,6 +4,9 @@
   "workspaces": {
     "": {
       "name": "expense-tracker",
+      "dependencies": {
+        "elysia": "1.4.28",
+      },
       "devDependencies": {
         "husky": "^9.1.7",
         "oxlint": "^1.62.0",
@@ -14,7 +17,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@elysiajs/cors": "^1.4.2",
-        "elysia": "latest",
+        "elysia": "1.4.28",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -37,7 +40,7 @@
         "@types/react": "^18.3.0",
         "@types/react-dom": "^18.3.0",
         "@vitejs/plugin-react": "^4.3.0",
-        "elysia": "latest",
+        "elysia": "1.4.28",
         "jsdom": "^25.0.0",
         "typescript": "^5.5.0",
         "vite": "^5.4.0",
