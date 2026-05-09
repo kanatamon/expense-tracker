@@ -75,6 +75,14 @@ export function createApp(
 ) {
 	const staticDir = options.staticDir ?? join(process.cwd(), "apps/web/dist");
 	const staticFileHandler = createStaticFileHandler(staticDir);
+	const rootHandler = options.serveStatic
+		? (context: StaticHandlerContext) => {
+				const accept = context.request.headers.get("accept") ?? "";
+				return accept.includes("text/html")
+					? staticFileHandler(context)
+					: handleHealthCheck();
+			}
+		: handleHealthCheck;
 	const app = new Elysia()
 		.use(cors())
 		.decorate("repo", repo)
@@ -88,8 +96,8 @@ export function createApp(
 				return { error: "ParseError", message: error.message };
 			}
 			if (code === "VALIDATION") {
-				// Let Elysia use default validation error response
-				return;
+				set.status = 400;
+				return { error: "ValidationError", message: error.message };
 			}
 			set.status = 500;
 			return {
@@ -97,7 +105,7 @@ export function createApp(
 				message: "An unexpected error occurred",
 			};
 		})
-		.get("/", options.serveStatic ? staticFileHandler : handleHealthCheck)
+		.get("/", rootHandler)
 		.post("/api/expenses", createExpense, {
 			body: CreateExpenseBody,
 			response: { 201: ExpenseSchema, 500: ApiError },

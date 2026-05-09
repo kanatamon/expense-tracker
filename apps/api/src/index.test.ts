@@ -94,7 +94,7 @@ describe("POST /api/expenses", () => {
       body: JSON.stringify({}),
     });
     const res = await app.handle(req);
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
   });
 
   it("rejects invalid category", async () => {
@@ -106,7 +106,7 @@ describe("POST /api/expenses", () => {
       body: JSON.stringify(body),
     });
     const res = await app.handle(req);
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
   });
 
   it("rejects negative amount", async () => {
@@ -118,7 +118,7 @@ describe("POST /api/expenses", () => {
       body: JSON.stringify(body),
     });
     const res = await app.handle(req);
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
   });
 });
 
@@ -249,13 +249,13 @@ describe("GET /api/expenses", () => {
   it("rejects invalid sort_by", async () => {
     const { app: freshApp } = createTestApp();
     const res = await getExpenses(freshApp, { sort_by: "invalid" });
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
   });
 
   it("rejects invalid sort_order", async () => {
     const { app: freshApp } = createTestApp();
     const res = await getExpenses(freshApp, { sort_order: "invalid" });
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
   });
 });
 
@@ -311,6 +311,6 @@ describe("GET /api/expenses/csv", () => {
   it("rejects invalid category in CSV export", async () => {
     const { app: freshApp } = createTestApp();
     const res = await getCsv(freshApp, { category: "invalid" });
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
   });
 });
