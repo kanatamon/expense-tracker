@@ -3,3 +3,4 @@ data/expenses.db
 *.log
 dist/
 .DS_Store
+test-results/.last-run.json
